@@ -1,0 +1,35 @@
+{
+  "name": "menu-scanner",
+  "version": "1.0.0",
+  "description": "Menu Scanner - Extract dish information from menu images",
+  "main": "index.js",
+  "scripts": {
+    "start": "docker-compose up -d",
+    "stop": "docker-compose down",
+    "logs": "docker-compose logs -f",
+    "build": "docker-compose build",
+    "test": "echo \"No tests specified yet\"",
+    "setup": "./setup.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sontheteacher/Menu-Scanner.git"
+  },
+  "keywords": [
+    "menu",
+    "scanner",
+    "ocr",
+    "grpc",
+    "microservices",
+    "kubernetes",
+    "gcp",
+    "elasticsearch",
+    "redis"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sontheteacher/Menu-Scanner/issues"
+  },
+  "homepage": "https://github.com/sontheteacher/Menu-Scanner#readme"
+}

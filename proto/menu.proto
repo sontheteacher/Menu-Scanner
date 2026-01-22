@@ -1,0 +1,134 @@
+syntax = "proto3";
+
+package menu;
+
+option go_package = "github.com/sontheteacher/Menu-Scanner/proto;menu";
+
+// Menu Service - handles menu processing and dish extraction
+service MenuService {
+  // Process a menu image and extract dishes
+  rpc ProcessMenuImage(MenuImageRequest) returns (MenuResponse);
+  
+  // Get dish details by ID
+  rpc GetDish(DishRequest) returns (DishResponse);
+  
+  // Search dishes
+  rpc SearchDishes(SearchRequest) returns (SearchResponse);
+  
+  // Stream dish processing results
+  rpc StreamDishProcessing(MenuImageRequest) returns (stream DishResponse);
+}
+
+// Request to process a menu image
+message MenuImageRequest {
+  bytes image_data = 1;
+  string image_url = 2;
+  string format = 3; // jpg, png, etc.
+  ProcessingOptions options = 4;
+}
+
+// Processing options
+message ProcessingOptions {
+  bool extract_prices = 1;
+  bool extract_descriptions = 2;
+  bool extract_ingredients = 3;
+  string language = 4;
+  bool use_cache = 5;
+}
+
+// Response containing extracted menu information
+message MenuResponse {
+  string menu_id = 1;
+  repeated Dish dishes = 2;
+  Metadata metadata = 3;
+  ProcessingStatus status = 4;
+}
+
+// Individual dish information
+message Dish {
+  string dish_id = 1;
+  string name = 2;
+  string description = 3;
+  Price price = 4;
+  repeated string ingredients = 5;
+  string category = 6;
+  bytes thumbnail = 7;
+  string image_url = 8;
+  float confidence_score = 9;
+  map<string, string> extra_fields = 10;
+}
+
+// Price information
+message Price {
+  float amount = 1;
+  string currency = 2;
+  string original_text = 3;
+}
+
+// Metadata about the menu processing
+message Metadata {
+  int64 processing_time_ms = 1;
+  string restaurant_name = 2;
+  string cuisine_type = 3;
+  int32 total_dishes = 4;
+  string source = 5;
+  int64 timestamp = 6;
+}
+
+// Processing status
+message ProcessingStatus {
+  enum Status {
+    UNKNOWN = 0;
+    PROCESSING = 1;
+    COMPLETED = 2;
+    FAILED = 3;
+    PARTIAL = 4;
+  }
+  Status status = 1;
+  string message = 2;
+  repeated string errors = 3;
+}
+
+// Request for a specific dish
+message DishRequest {
+  string dish_id = 1;
+  bool include_similar = 2;
+}
+
+// Response with dish details
+message DishResponse {
+  Dish dish = 1;
+  repeated Dish similar_dishes = 2;
+}
+
+// Search request
+message SearchRequest {
+  string query = 1;
+  repeated string categories = 2;
+  PriceRange price_range = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+  repeated string filters = 6;
+}
+
+// Price range filter
+message PriceRange {
+  float min = 1;
+  float max = 2;
+  string currency = 3;
+}
+
+// Search response
+message SearchResponse {
+  repeated Dish dishes = 1;
+  int32 total_results = 2;
+  int32 page = 3;
+  SearchMetadata metadata = 4;
+}
+
+// Search metadata
+message SearchMetadata {
+  int64 search_time_ms = 1;
+  repeated string suggested_queries = 2;
+  map<string, int32> category_counts = 3;
+}
