@@ -1,0 +1,427 @@
+openapi: 3.0.3
+info:
+  title: Menu Scanner API
+  description: |
+    API for scanning menu images and extracting dish information.
+    
+    This API provides endpoints to:
+    - Upload menu images
+    - Process and extract dish information
+    - Search for dishes
+    - Retrieve dish details
+    
+    ## Architecture
+    - Uses gRPC for internal microservice communication
+    - Redis & Memcached for caching
+    - Elasticsearch for search functionality
+    - GCP services for storage and processing
+    - Kubernetes for orchestration
+    
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@menuscanner.example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development server
+  - url: https://api.menuscanner.example.com/api/v1
+    description: Production server (via Cloudflare)
+
+tags:
+  - name: Menu
+    description: Menu processing operations
+  - name: Dishes
+    description: Dish information and search
+  - name: Health
+    description: Health check endpoints
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the API is running and healthy
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                  services:
+                    type: object
+                    properties:
+                      redis:
+                        type: string
+                        example: connected
+                      elasticsearch:
+                        type: string
+                        example: connected
+                      grpc:
+                        type: string
+                        example: connected
+
+  /menu/upload:
+    post:
+      tags:
+        - Menu
+      summary: Upload and process menu image
+      description: Upload a menu image for processing and dish extraction
+      operationId: uploadMenu
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: The menu image file
+                options:
+                  type: object
+                  properties:
+                    extract_prices:
+                      type: boolean
+                      default: true
+                    extract_descriptions:
+                      type: boolean
+                      default: true
+                    extract_ingredients:
+                      type: boolean
+                      default: false
+                    language:
+                      type: string
+                      default: en
+                      example: en
+                    use_cache:
+                      type: boolean
+                      default: true
+              required:
+                - image
+      responses:
+        '200':
+          description: Menu processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /menu/{menuId}:
+    get:
+      tags:
+        - Menu
+      summary: Get menu details
+      description: Retrieve details of a previously processed menu
+      operationId: getMenu
+      parameters:
+        - name: menuId
+          in: path
+          required: true
+          description: Unique menu identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Menu details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuResponse'
+        '404':
+          description: Menu not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dishes/{dishId}:
+    get:
+      tags:
+        - Dishes
+      summary: Get dish details
+      description: Retrieve detailed information about a specific dish
+      operationId: getDish
+      parameters:
+        - name: dishId
+          in: path
+          required: true
+          description: Unique dish identifier
+          schema:
+            type: string
+        - name: include_similar
+          in: query
+          description: Include similar dishes in response
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Dish details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DishResponse'
+        '404':
+          description: Dish not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /dishes/search:
+    get:
+      tags:
+        - Dishes
+      summary: Search dishes
+      description: Search for dishes using Elasticsearch
+      operationId: searchDishes
+      parameters:
+        - name: q
+          in: query
+          description: Search query
+          required: true
+          schema:
+            type: string
+            example: pasta
+        - name: category
+          in: query
+          description: Filter by category
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: min_price
+          in: query
+          description: Minimum price filter
+          schema:
+            type: number
+            format: float
+        - name: max_price
+          in: query
+          description: Maximum price filter
+          schema:
+            type: number
+            format: float
+        - name: limit
+          in: query
+          description: Number of results to return
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Offset for pagination
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Search results retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Invalid search parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    MenuResponse:
+      type: object
+      properties:
+        menu_id:
+          type: string
+          description: Unique menu identifier
+        dishes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dish'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        status:
+          $ref: '#/components/schemas/ProcessingStatus'
+
+    Dish:
+      type: object
+      properties:
+        dish_id:
+          type: string
+          description: Unique dish identifier
+        name:
+          type: string
+          description: Dish name
+        description:
+          type: string
+          description: Dish description
+        price:
+          $ref: '#/components/schemas/Price'
+        ingredients:
+          type: array
+          items:
+            type: string
+        category:
+          type: string
+          description: Dish category (appetizer, main, dessert, etc.)
+        thumbnail:
+          type: string
+          format: byte
+          description: Base64 encoded thumbnail image
+        image_url:
+          type: string
+          format: uri
+          description: URL to full dish image
+        confidence_score:
+          type: number
+          format: float
+          description: Confidence score of the extraction (0-1)
+        extra_fields:
+          type: object
+          additionalProperties:
+            type: string
+
+    Price:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+          example: USD
+        original_text:
+          type: string
+          description: Original price text from menu
+
+    Metadata:
+      type: object
+      properties:
+        processing_time_ms:
+          type: integer
+          format: int64
+          description: Processing time in milliseconds
+        restaurant_name:
+          type: string
+        cuisine_type:
+          type: string
+        total_dishes:
+          type: integer
+        source:
+          type: string
+        timestamp:
+          type: integer
+          format: int64
+
+    ProcessingStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [UNKNOWN, PROCESSING, COMPLETED, FAILED, PARTIAL]
+        message:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+
+    DishResponse:
+      type: object
+      properties:
+        dish:
+          $ref: '#/components/schemas/Dish'
+        similar_dishes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dish'
+
+    SearchResponse:
+      type: object
+      properties:
+        dishes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dish'
+        total_results:
+          type: integer
+        page:
+          type: integer
+        metadata:
+          $ref: '#/components/schemas/SearchMetadata'
+
+    SearchMetadata:
+      type: object
+      properties:
+        search_time_ms:
+          type: integer
+          format: int64
+        suggested_queries:
+          type: array
+          items:
+            type: string
+        category_counts:
+          type: object
+          additionalProperties:
+            type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Additional error details
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []

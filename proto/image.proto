@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package image;
+
+option go_package = "github.com/sontheteacher/Menu-Scanner/proto;image";
+
+// Image Service - handles image processing and analysis
+service ImageService {
+  // Upload and analyze an image
+  rpc AnalyzeImage(ImageRequest) returns (ImageAnalysisResponse);
+  
+  // Extract text from image (OCR)
+  rpc ExtractText(ImageRequest) returns (TextExtractionResponse);
+  
+  // Detect objects in image
+  rpc DetectObjects(ImageRequest) returns (ObjectDetectionResponse);
+  
+  // Stream large image upload
+  rpc StreamImageUpload(stream ImageChunk) returns (UploadResponse);
+}
+
+// Image request
+message ImageRequest {
+  bytes image_data = 1;
+  string image_url = 2;
+  ImageOptions options = 3;
+}
+
+// Image chunk for streaming
+message ImageChunk {
+  bytes chunk = 1;
+  int32 chunk_number = 2;
+  string upload_id = 3;
+}
+
+// Image processing options
+message ImageOptions {
+  bool detect_text = 1;
+  bool detect_objects = 2;
+  bool detect_labels = 3;
+  string language_hints = 4;
+  int32 max_results = 5;
+}
+
+// Image analysis response
+message ImageAnalysisResponse {
+  string image_id = 1;
+  repeated TextAnnotation text_annotations = 2;
+  repeated ObjectAnnotation object_annotations = 3;
+  repeated Label labels = 4;
+  ImageMetadata metadata = 5;
+}
+
+// Text annotation
+message TextAnnotation {
+  string text = 1;
+  BoundingBox bounding_box = 2;
+  float confidence = 3;
+  string language = 4;
+}
+
+// Object annotation
+message ObjectAnnotation {
+  string name = 1;
+  float confidence = 2;
+  BoundingBox bounding_box = 3;
+}
+
+// Label
+message Label {
+  string description = 1;
+  float score = 2;
+}
+
+// Bounding box
+message BoundingBox {
+  int32 x = 1;
+  int32 y = 2;
+  int32 width = 3;
+  int32 height = 4;
+}
+
+// Image metadata
+message ImageMetadata {
+  int32 width = 1;
+  int32 height = 2;
+  string format = 3;
+  int64 size_bytes = 4;
+  int64 processing_time_ms = 5;
+}
+
+// Text extraction response
+message TextExtractionResponse {
+  repeated TextBlock text_blocks = 1;
+  string full_text = 2;
+  ImageMetadata metadata = 3;
+}
+
+// Text block
+message TextBlock {
+  string text = 1;
+  BoundingBox bounding_box = 2;
+  float confidence = 3;
+  int32 page = 4;
+}
+
+// Object detection response
+message ObjectDetectionResponse {
+  repeated ObjectAnnotation objects = 1;
+  int32 total_objects = 2;
+  ImageMetadata metadata = 3;
+}
+
+// Upload response
+message UploadResponse {
+  string image_id = 1;
+  string storage_url = 2;
+  bool success = 3;
+  string message = 4;
+}

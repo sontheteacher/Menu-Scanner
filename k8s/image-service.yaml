@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-service
+  namespace: menu-scanner
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: image-service
+  template:
+    metadata:
+      labels:
+        app: image-service
+    spec:
+      containers:
+      - name: image-service
+        image: gcr.io/PROJECT_ID/menu-scanner-image-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 50052
+        env:
+        - name: GRPC_PORT
+          value: "50052"
+        - name: GCP_PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: gcp-credentials
+              key: project-id
+        envFrom:
+        - configMapRef:
+            name: menu-scanner-config
+        volumeMounts:
+        - name: gcp-credentials
+          mountPath: /app/credentials
+          readOnly: true
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "300m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+      volumes:
+      - name: gcp-credentials
+        secret:
+          secretName: gcp-credentials
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-service
+  namespace: menu-scanner
+spec:
+  selector:
+    app: image-service
+  ports:
+  - protocol: TCP
+    port: 50052
+    targetPort: 50052
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: image-service-hpa
+  namespace: menu-scanner
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: image-service
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

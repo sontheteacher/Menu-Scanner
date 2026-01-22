@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - menu-scanner-network
+
+  # Memcached for distributed caching
+  memcached:
+    image: memcached:1.6-alpine
+    ports:
+      - "11211:11211"
+    networks:
+      - menu-scanner-network
+
+  # Elasticsearch for dish search
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - menu-scanner-network
+
+  # API Gateway (REST/OpenAPI)
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - GRPC_MENU_SERVICE_HOST=menu-service
+      - GRPC_MENU_SERVICE_PORT=50051
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MEMCACHED_HOST=memcached
+      - MEMCACHED_PORT=11211
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+    depends_on:
+      - redis
+      - memcached
+      - elasticsearch
+      - menu-service
+    networks:
+      - menu-scanner-network
+
+  # Menu Processing Service (gRPC)
+  menu-service:
+    build:
+      context: ./services/menu-service
+      dockerfile: Dockerfile
+    ports:
+      - "50051:50051"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json
+    volumes:
+      - ./credentials:/app/credentials:ro
+    depends_on:
+      - redis
+      - elasticsearch
+    networks:
+      - menu-scanner-network
+
+  # Image Processing Service (gRPC)
+  image-service:
+    build:
+      context: ./services/image-service
+      dockerfile: Dockerfile
+    ports:
+      - "50052:50052"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json
+    volumes:
+      - ./credentials:/app/credentials:ro
+    depends_on:
+      - redis
+    networks:
+      - menu-scanner-network
+
+networks:
+  menu-scanner-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  elasticsearch_data:
